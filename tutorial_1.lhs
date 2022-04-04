@@ -20,10 +20,13 @@ data Config = Config {
                ,cSurface :: SDL.Surface
               }
 
-(initialScreenWidth, initialScreenHeight) = (640,480)
+rayCount = 320
+(screenWidth, screenHeight) = (640,480)
 
 data GameState = GameState {
                     tiles :: Array Int Wall
+                   ,playerpos :: V2 Float
+                   ,playerdir :: V2 Float
                  }
 
 data Wall = FullWall | EmptyWall
@@ -32,7 +35,7 @@ main = do
   SDL.initialize [SDL.InitVideo]
   let title = "Raycaster"
 
-  window <- SDL.createWindow title SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 initialScreenWidth initialScreenHeight }
+  window <- SDL.createWindow title SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 screenWidth screenHeight }
   SDL.showWindow window
 
   screenSurface <- SDL.getWindowSurface window
@@ -46,8 +49,11 @@ main = do
     cSurface = screenSurface
   }
 
+  --TODO
   let initVars = GameState {
     tiles = undefined
+    ,playerpos = undefined
+    ,playerdir = undefined
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
@@ -78,7 +84,9 @@ renderLoop = do
 
 \begin{code}
 
---TODO
+--TODO https://github.com/adpextwindong/obelisk/blob/main/src/Obelisk/Effect/Renderer.hs#L190
 drawScreen :: ReaderT Config (StateT GameState IO) ()
 drawScreen = undefined
+
+
 \end{code}
