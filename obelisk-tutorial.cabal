@@ -1,0 +1,18 @@
+cabal-version: 3.4
+
+name:         obelisk-tutorial
+version:      0.1.0.0
+build-type:   Simple
+
+executable tutorial1
+  main-is: tutorial_1.lhs
+  hs-source-dirs:
+    .
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    base >= 4.7 && < 5
+   ,sdl2
+   ,linear
+   ,mtl
+   ,text
+   ,array

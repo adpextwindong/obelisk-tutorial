@@ -1,6 +1,6 @@
 \begin{align}
 
-ghci -package linear -package mtl tutorial_1.lhs
+cabal repl
 \end{align}
 
 
