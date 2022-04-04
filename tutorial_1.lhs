@@ -12,6 +12,7 @@ import Linear
 import Control.Monad.State
 import Control.Monad.Reader
 import Data.Array
+import Foreign.C.Types
 
 data Config = Config {
                 cWindow :: SDL.Window
@@ -31,7 +32,7 @@ main = do
   SDL.initialize [SDL.InitVideo]
   let title = "Raycaster"
 
-  window <- SDL.createWindow title SDL.defaultWindow { SDL.windowInitialSize = V2 initialScreenWidth initialScreenHeight }
+  window <- SDL.createWindow title SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 initialScreenWidth initialScreenHeight }
   SDL.showWindow window
 
   screenSurface <- SDL.getWindowSurface window
