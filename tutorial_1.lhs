@@ -61,13 +61,24 @@ renderLoop = do
   let backgroundColor = SDL.V4 34 34 34 255
 
   --TODO updateInput and quit signal
+  let quitSignal = False
 
   SDL.clear =<< asks cRenderer
   screenSurface <- asks cSurface
   SDL.surfaceFillRect screenSurface Nothing backgroundColor
 
   --TODO
+  drawScreen
+
+  unless quitSignal renderLoop
 
   undefined
 
+\end{code}
+
+\begin{code}
+
+--TODO
+drawScreen :: ReaderT Config (StateT GameState IO) ()
+drawScreen = undefined
 \end{code}
