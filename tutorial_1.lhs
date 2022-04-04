@@ -8,6 +8,7 @@ cabal repl
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.Text as T
 import qualified SDL
+import qualified SDL.Primitive as SDL
 import Linear
 import Control.Monad.State
 import Control.Monad.Reader
@@ -22,6 +23,9 @@ data Config = Config {
 
 rayCount = 320
 (screenWidth, screenHeight) = (640,480)
+screenMiddle = fromIntegral screenWidth / 2
+wallWidth = screenWidth `div` rayCount
+wallHeight = 64
 
 data GameState = GameState {
                     world :: WorldTiles
@@ -35,6 +39,8 @@ data WorldTiles = WorldTiles {
                     tiles :: Array Int Wall
                    ,worldSize :: Int
                   }
+
+data Intersection = Intersection (V2 Float)
 
 main = do
   SDL.initialize [SDL.InitVideo]
@@ -91,7 +97,36 @@ renderLoop = do
 
 --TODO https://github.com/adpextwindong/obelisk/blob/main/src/Obelisk/Effect/Renderer.hs#L190
 drawScreen :: ReaderT Config (StateT GameState IO) ()
-drawScreen = undefined
+drawScreen = do
+  (GameState w pdir ppos) <- get
+
+      -----
+  let rayAnglePairs = rayHeads rayCount pdir
+      rays = fmap fst rayAnglePairs :: [V2 Float]
+      angles = fmap snd rayAnglePairs :: [Float]
+
+      paths = shootRay (fromIntegral $ worldSize w) ppos <$> rays
+      wallPoints = walkRaysForWalls w ppos paths
+      ----
+
+  renderer <- asks cRenderer
+  let test = (drawWall renderer ppos w) <$> zip3 wallPoints [0..] angles
+  return ()
+
+
+drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> ((Maybe Intersection), Float, Float) -> IO ()
+drawWall _ _ _ (Nothing, _, _) = return ()
+drawWall r p w (Just (Intersection intpos@(V2 x y)), rayIndex, rayAngle) = do
+  let distanceToSlice = norm $ intpos - p
+      projectedWallHeight = wallHeight / distanceToSlice
+      wallTop     = screenMiddle - projectedWallHeight
+      wallBottom  = screenMiddle + projectedWallHeight
+      wallLeft    = rayIndex * fromIntegral wallWidth
+      wallRight   = (rayIndex + 1) * fromIntegral wallWidth
+
+      filledTileColor = SDL.V4 51 51 102 maxBound
+
+  SDL.fillRectangle r (fmap floor $ V2 wallLeft wallTop) (fmap floor $ V2 wallRight wallBottom) filledTileColor
 
 boxMap :: Int -> WorldTiles
 boxMap n = WorldTiles tiles n
@@ -102,5 +137,10 @@ boxMap n = WorldTiles tiles n
 
 accessMap :: WorldTiles -> V2 Int -> Wall
 accessMap w (V2 x y) = tiles w ! ((x * worldSize w) + y)
+
+--TODO raycasting stuff
+rayHeads = undefined
+shootRay = undefined
+walkRaysForWalls = undefined
 
 \end{code}

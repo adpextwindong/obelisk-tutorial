@@ -21,6 +21,7 @@ executable tutorial1
   build-depends:
     base >= 4.7 && < 5
    ,sdl2
+   ,sdl2-gfx
    ,linear
    ,mtl
    ,text
