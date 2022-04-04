@@ -40,7 +40,7 @@ data WorldTiles = WorldTiles {
                    ,worldSize :: Int
                   }
 
-data Intersection = Intersection (V2 Float)
+data Intersection = Intersection (V2 Float) (V2 Int)
 
 main = do
   SDL.initialize [SDL.InitVideo]
@@ -115,7 +115,7 @@ drawScreen = do
 
 drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> ((Maybe Intersection), Float, Float) -> IO ()
 drawWall _ _ _ (Nothing, _, _) = return ()
-drawWall r p w (Just (Intersection intpos@(V2 x y)), rayIndex, rayAngle) = do
+drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
   let distanceToSlice = norm $ intpos - p
       projectedWallHeight = wallHeight / distanceToSlice
       wallTop     = screenMiddle - projectedWallHeight
@@ -138,8 +138,27 @@ accessMap :: WorldTiles -> V2 Int -> Wall
 accessMap w (V2 x y) = tiles w ! ((x * worldSize w) + y)
 
 --TODO raycasting stuff
-rayHeads = undefined
+rayHeads playerpos playerdir = fmap ray cameraPlaneSweep
+  where
+   cameraPlaneSweep = [2.0 * (x / fromIntegral screenWidth) - 1.0 | x <- [0 .. fromIntegral screenWidth - 1]]
+   cameraPlane = undefined --TODO
+   cosThetaBetween v u = dot u v / (norm u * norm v)
+   ray screenDelta =
+    let ray = normalize $ playerdir - cameraPlane ^* screenDelta in (ray, cosThetaBetween ray playerdir)
+
+
 shootRay = undefined
 walkRaysForWalls = undefined
+
+walkRayPathForWall :: WorldTiles -> V2 Float -> V2 Float -> [V2 Float] -> Maybe Intersection
+walkRayPathForWall _ _ _ [] = Nothing
+walkRayPathForWall w p r (step:path) = case accessMap w checkInds of
+                                         FullWall -> Just $ uncurry Intersection cPair
+                                         _ -> walkRayPathForWall w p r path
+  where
+    cPair@(_,checkInds) = posAndInd step
+
+posAndInd :: V2 Float -> (V2 Float, V2 Int)
+posAndInd result = (result, fmap truncate result)
 
 \end{code}
