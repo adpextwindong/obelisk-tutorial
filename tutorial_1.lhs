@@ -110,8 +110,7 @@ drawScreen = do
       ----
 
   renderer <- asks cRenderer
-  let test = (drawWall renderer ppos w) <$> zip3 wallPoints [0..] angles
-  return ()
+  liftIO . sequence_ $ (drawWall renderer ppos w) <$> zip3 wallPoints [0..] angles
 
 
 drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> ((Maybe Intersection), Float, Float) -> IO ()
