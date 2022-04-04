@@ -6,7 +6,7 @@ cabal repl
 
 \begin{code}
 {-# LANGUAGE OverloadedStrings #-}
-import Data.Text
+import qualified Data.Text as T
 import qualified SDL
 import Linear
 import Control.Monad.State
@@ -24,12 +24,17 @@ rayCount = 320
 (screenWidth, screenHeight) = (640,480)
 
 data GameState = GameState {
-                    tiles :: Array Int Wall
+                    world :: WorldTiles
                    ,playerpos :: V2 Float
                    ,playerdir :: V2 Float
                  }
 
 data Wall = FullWall | EmptyWall
+
+data WorldTiles = WorldTiles {
+                    tiles :: Array Int Wall
+                   ,worldSize :: Int
+                  }
 
 main = do
   SDL.initialize [SDL.InitVideo]
@@ -51,7 +56,7 @@ main = do
 
   --TODO
   let initVars = GameState {
-    tiles = undefined
+    world = boxMap 10
     ,playerpos = undefined
     ,playerdir = undefined
   }
@@ -88,5 +93,14 @@ renderLoop = do
 drawScreen :: ReaderT Config (StateT GameState IO) ()
 drawScreen = undefined
 
+boxMap :: Int -> WorldTiles
+boxMap n = WorldTiles tiles n
+  where
+    top = replicate n FullWall
+    middle = [FullWall] ++ replicate (n - 2) EmptyWall ++ [FullWall]
+    tiles = listArray (0,((n*n) - 1)) $ top ++ middle ++ top
+
+accessMap :: WorldTiles -> V2 Int -> Wall
+accessMap w (V2 x y) = tiles w ! ((x * worldSize w) + y)
 
 \end{code}
