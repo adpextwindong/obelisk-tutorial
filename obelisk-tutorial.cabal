@@ -27,3 +27,4 @@ executable tutorial1
    ,lens
    ,text
    ,array
+   ,bifunctor

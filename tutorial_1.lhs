@@ -10,6 +10,7 @@ import Data.Array
 import Foreign.C.Types
 import Control.Lens
 import Control.Concurrent
+import Data.Bifunctor
 
 data Config = Config {
                 cWindow :: SDL.Window
@@ -55,9 +56,9 @@ main = do
   }
 
   let initVars = GameState {
-    world = boxMap 10
-    ,playerpos = V2 3.5 4.5
-    ,playerdir = normalize $ V2 (0.5) (-0.5)
+    world = singleMap 10
+    ,playerpos = V2 5.0 5.0
+    ,playerdir = normalize $ V2 (-0.5) (-0.5)
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
@@ -79,7 +80,8 @@ renderLoop = do
   screenSurface <- asks cSurface
   SDL.surfaceFillRect screenSurface Nothing backgroundColor
 
-  drawScreen
+  --drawScreen
+  drawDebug
 
   SDL.updateWindowSurface =<< asks cWindow
   liftIO $ threadDelay 6000
@@ -88,6 +90,53 @@ renderLoop = do
 \end{code}
 
 \begin{code}
+
+drawDebug  :: ReaderT Config (StateT GameState IO) ()
+drawDebug = do
+  (GameState w@(WorldTiles tiles ws) pdir ppos) <- get
+  rend <- asks cRenderer
+
+  let gtp = mapAft $ worldToPD ws
+      btp = bimap gtp gtp
+
+
+  let verticalLines = btp <$> [((V2 x 0),(V2 x (fromIntegral ws))) | x <- [0.. fromIntegral ws]] :: [(V2 CInt, V2 CInt)]
+      horizontalLines = btp <$> [((V2 0 y),(V2 (fromIntegral ws) y)) | y <- [0..(fromIntegral ws)]]
+      inds = [(x,y) | x <- [0..ws - 1], y <- [0..ws - 1]]
+      quads = [(V2 x y, V2 (x+1) y, V2 x (y+1), V2 (x+1) (y+1)) | x <- [0.. fromIntegral ws - 1], y <- [0.. fromIntegral ws]]
+
+  sequence_ $ uncurry (SDL.drawLine rend) . (bimap SDL.P SDL.P) <$> verticalLines
+  sequence_ $ uncurry (SDL.drawLine rend) . (bimap SDL.P SDL.P) <$> horizontalLines
+{-
+  sequence_ $ zip inds quads <&> (\((x,y), (vA,vB,vC,vD)) -> do
+    let sampleColor = wallTypeToColor $ accessMap w (V2 x y)
+    undefined
+    -}
+
+worldToPD ws = translateToPDCenter !*! centerToLocalOrigin
+  where
+    delta = fromIntegral ws / 2
+    centerToLocalOrigin = translate (-delta) (-delta)
+    translateToPDCenter = translate (fromIntegral screenWidth / 2.0) (fromIntegral screenHeight / 2.0)
+
+mapAft :: V3 (V3 Float) -> V2 Float -> V2 CInt
+mapAft t = dC . (fmap floor . (t !*)) . hC
+
+hC :: (Num a) => V2 a -> V3 a
+hC (V2 x y) = V3 x y 1
+
+dC :: (Num a) => V3 a -> V2 a
+dC (V3 x y _) = V2 x y
+
+translate :: (Num a) => a -> a -> V3 (V3 a)
+translate x y = V3 (V3 1 0 x)
+                   (V3 0 1 y)
+                   (V3 0 0 1)
+
+filledTileColor = SDL.V4 51 51 102 maxBound
+
+wallTypeToColor FullWall = filledTileColor
+wallTypeToColor EmptyWall = SDL.V4 34 34 34 maxBound
 
 drawScreen :: ReaderT Config (StateT GameState IO) ()
 drawScreen = do
@@ -113,9 +162,13 @@ drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
       wallLeft    = rayIndex * fromIntegral wallWidth
       wallRight   = (rayIndex + 1) * fromIntegral wallWidth
 
-      filledTileColor = SDL.V4 51 51 102 maxBound
 
   SDL.fillRectangle r (fmap floor $ V2 wallLeft wallTop) (fmap floor $ V2 wallRight wallBottom) filledTileColor
+
+singleMap :: Int -> WorldTiles
+singleMap n = WorldTiles tiles n
+  where
+    tiles = listArray (0,((n*n)-1)) $ [FullWall] ++ replicate ((n * n) - 1) EmptyWall
 
 boxMap :: Int -> WorldTiles
 boxMap n = WorldTiles tiles n
