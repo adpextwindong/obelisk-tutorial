@@ -96,28 +96,32 @@ drawDebug = do
   (GameState w@(WorldTiles tiles ws) pdir ppos) <- get
   rend <- asks cRenderer
 
+  --Affine Transformation Utility functions
   let gtp = mapAft $ worldToPD ws
       btp = bimap gtp gtp
 
-
+  --Grid Lines
   let verticalLines = btp <$> [((V2 x 0),(V2 x (fromIntegral ws))) | x <- [0.. fromIntegral ws]] :: [(V2 CInt, V2 CInt)]
       horizontalLines = btp <$> [((V2 0 y),(V2 (fromIntegral ws) y)) | y <- [0..(fromIntegral ws)]]
-      inds = [(x,y) | x <- [0..ws - 1], y <- [0..ws - 1]]
-      quads = [(V2 x y, V2 (x+1) y, V2 x (y+1), V2 (x+1) (y+1)) | x <- [0.. fromIntegral ws - 1], y <- [0.. fromIntegral ws]]
 
-  sequence_ $ uncurry (SDL.drawLine rend) . (bimap SDL.P SDL.P) <$> verticalLines
-  sequence_ $ uncurry (SDL.drawLine rend) . (bimap SDL.P SDL.P) <$> horizontalLines
+  sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> verticalLines
+  sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> horizontalLines
+
+  --TODO tiles
 {-
+  let inds = [(x,y) | x <- [0..ws - 1], y <- [0..ws - 1]]
+      quads = [(V2 x y, V2 (x+1) y, V2 x (y+1), V2 (x+1) (y+1)) | x <- [0.. fromIntegral ws - 1], y <- [0.. fromIntegral ws]]
   sequence_ $ zip inds quads <&> (\((x,y), (vA,vB,vC,vD)) -> do
     let sampleColor = wallTypeToColor $ accessMap w (V2 x y)
     undefined
     -}
 
-worldToPD ws = translateToPDCenter !*! centerToLocalOrigin
+worldToPD ws = translateToPDCenter !*! zoomFactor !*! centerToLocalOrigin
   where
     delta = fromIntegral ws / 2
-    centerToLocalOrigin = translate (-delta) (-delta)
-    translateToPDCenter = translate (fromIntegral screenWidth / 2.0) (fromIntegral screenHeight / 2.0)
+    centerToLocalOrigin = translateT (-delta) (-delta)
+    zoomFactor = zoomT $ fromIntegral screenHeight / fromIntegral ws * 0.95
+    translateToPDCenter = translateT (fromIntegral screenWidth / 2.0) (fromIntegral screenHeight / 2.0)
 
 mapAft :: V3 (V3 Float) -> V2 Float -> V2 CInt
 mapAft t = dC . (fmap floor . (t !*)) . hC
@@ -128,15 +132,21 @@ hC (V2 x y) = V3 x y 1
 dC :: (Num a) => V3 a -> V2 a
 dC (V3 x y _) = V2 x y
 
-translate :: (Num a) => a -> a -> V3 (V3 a)
-translate x y = V3 (V3 1 0 x)
+translateT :: (Num a) => a -> a -> V3 (V3 a)
+translateT x y = V3 (V3 1 0 x)
                    (V3 0 1 y)
                    (V3 0 0 1)
 
-filledTileColor = SDL.V4 51 51 102 maxBound
+zoomT :: (Num a) => a -> V3 (V3 a)
+zoomT scale = V3 (V3 scale 0 0)
+                (V3 0 scale 0)
+                (V3 0 0 1)
+
 
 wallTypeToColor FullWall = filledTileColor
 wallTypeToColor EmptyWall = SDL.V4 34 34 34 maxBound
+white = SDL.V4 255 255 255 255
+filledTileColor = SDL.V4 51 51 102 maxBound
 
 drawScreen :: ReaderT Config (StateT GameState IO) ()
 drawScreen = do
