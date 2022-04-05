@@ -24,5 +24,6 @@ executable tutorial1
    ,sdl2-gfx
    ,linear
    ,mtl
+   ,lens
    ,text
    ,array

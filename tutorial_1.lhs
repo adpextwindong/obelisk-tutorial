@@ -14,6 +14,8 @@ import Control.Monad.State
 import Control.Monad.Reader
 import Data.Array
 import Foreign.C.Types
+import Control.Lens
+import Control.Concurrent
 
 data Config = Config {
                 cWindow :: SDL.Window
@@ -60,11 +62,10 @@ main = do
     cSurface = screenSurface
   }
 
-  --TODO
   let initVars = GameState {
     world = boxMap 10
-    ,playerpos = undefined
-    ,playerdir = undefined
+    ,playerpos = V2 3.5 4.5
+    ,playerdir = normalize $ V2 (-1) (-1)
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
@@ -87,10 +88,10 @@ renderLoop = do
   --TODO
   drawScreen
 
+  SDL.updateWindowSurface =<< asks cWindow
+  liftIO $ threadDelay 60
+
   unless quitSignal renderLoop
-
-  undefined
-
 \end{code}
 
 \begin{code}
@@ -106,7 +107,7 @@ drawScreen = do
       angles = fmap snd rayAnglePairs :: [Float]
 
       paths = shootRay (fromIntegral $ worldSize w) ppos <$> rays
-      wallPoints = walkRaysForWalls w ppos paths
+      wallPoints = walkRayForWall w ppos <$> paths
       ----
 
   renderer <- asks cRenderer
@@ -137,28 +138,74 @@ boxMap n = WorldTiles tiles n
 accessMap :: WorldTiles -> V2 Int -> Wall
 accessMap w (V2 x y) = tiles w ! ((x * worldSize w) + y)
 
---TODO raycasting stuff
 rayHeads playerpos playerdir = fmap ray cameraPlaneSweep
   where
    cameraPlaneSweep = [2.0 * (x / fromIntegral screenWidth) - 1.0 | x <- [0 .. fromIntegral screenWidth - 1]]
-   cameraPlane = undefined --TODO
+   cameraPlane = normalize $ playerdir *! rotation2 (pi / 2.0)
    cosThetaBetween v u = dot u v / (norm u * norm v)
    ray screenDelta =
     let ray = normalize $ playerdir - cameraPlane ^* screenDelta in (ray, cosThetaBetween ray playerdir)
 
-
-shootRay = undefined
-walkRaysForWalls = undefined
-
-walkRayPathForWall :: WorldTiles -> V2 Float -> V2 Float -> [V2 Float] -> Maybe Intersection
-walkRayPathForWall _ _ _ [] = Nothing
-walkRayPathForWall w p r (step:path) = case accessMap w checkInds of
-                                         FullWall -> Just $ uncurry Intersection cPair
-                                         _ -> walkRayPathForWall w p r path
+shootRay :: Int -> V2 Float -> V2 Float -> [Intersection]
+shootRay ws playerpos direction = mergeIntersections playerpos vints hints
   where
-    cPair@(_,checkInds) = posAndInd step
+    stepsX = baseStepsBounded ws (playerpos ^._x) (direction ^._x)
+    stepsY = baseStepsBounded ws (playerpos ^._y) (direction ^._y)
 
-posAndInd :: V2 Float -> (V2 Float, V2 Int)
-posAndInd result = (result, fmap truncate result)
+    vints = if direction ^._x == 0.0
+            then [] -- No vertical intersections if literally looking along x axis
+            else boundedHorizontal ws $ xRayGridIntersections playerpos direction stepsX
 
+    hints = boundedVertical ws $ yRayGridIntersections playerpos direction stepsY
+
+baseSteps :: [Float]
+baseSteps = [0.0 ..]
+
+upperBound :: Int -> Float -> Float -> Int
+upperBound ws axisPosition axisRay = if axisRay > 0
+                                     then floor $ fromIntegral ws - axisPosition
+                                     else floor axisPosition
+
+baseStepsBounded ws axisPosition axisRay = take (upperBound ws axisPosition axisRay) baseSteps
+
+boundedHorizontal ws = takeWhile (\(V2 _ y) -> y > 0 && y < fromIntegral ws)
+
+boundedVertical ws = takeWhile (\(V2 x _) -> x > 0 && x < fromIntegral ws)
+
+epsilon = 0.00001
+
+xRayGridIntersections p nr bss = (p +) . (nr ^*) <$> stepScales
+  where
+    firstStep = abs $ deltaFirst (p ^._x) (nr ^._x)
+    stepScales = [(firstStep + x + epsilon) / abs (nr ^._x) | x <- bss]
+
+yRayGridIntersections p nr bss = (p +) . (nr ^*) <$> stepScales
+  where
+    firstStep = abs $ deltaFirst (p ^._y) (nr ^._y)
+    stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- bss]
+
+deltaFirst :: Float -> Float -> Float
+deltaFirst px vx = if vx < 0
+                   then fromIntegral (floor px) - px
+                   else fromIntegral (ceiling px) - px
+
+
+mergeIntersections playerpos v@(x:xs) h@(y:ys) = if qd playerpos x < qd playerpos y
+                                                 then vX : mergeIntersections playerpos xs h
+                                                 else hY : mergeIntersections playerpos v ys
+  where vX = Intersection x $ fmap truncate x
+        hY = Intersection y $ fmap truncate y
+
+mergeIntersections _ [] ys = (\y -> Intersection y $ fmap truncate y) <$> ys
+mergeIntersections _ xs [] = (\x -> Intersection x $ fmap truncate x) <$> xs
+
+walkRayForWall :: WorldTiles -> V2 Float -> [Intersection] -> Maybe Intersection
+walkRayForWall _ _ [] = Nothing
+walkRayForWall w p (i@(Intersection _ checkInds) :path) = case accessMap w checkInds of
+                                         FullWall -> Just i
+                                         _ -> walkRayForWall w p path
+
+rotation2 :: Float -> V2 (V2 Float)
+rotation2 theta = V2 (V2 (cos theta) (-sin theta))
+                     (V2 (sin theta) (cos theta))
 \end{code}
