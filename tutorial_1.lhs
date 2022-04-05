@@ -1,9 +1,3 @@
-\begin{align}
-
-cabal repl
-\end{align}
-
-
 \begin{code}
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.Text as T
@@ -25,7 +19,7 @@ data Config = Config {
 
 rayCount = 320
 (screenWidth, screenHeight) = (640,480)
-screenMiddle = fromIntegral screenWidth / 2
+screenMiddle = fromIntegral screenHeight / 2
 wallWidth = screenWidth `div` rayCount
 wallHeight = 64
 
@@ -52,8 +46,6 @@ main = do
   SDL.showWindow window
 
   screenSurface <- SDL.getWindowSurface window
-  SDL.updateWindowSurface window
-
   screenRenderer <- SDL.createSoftwareRenderer screenSurface
 
   let cfg = Config {
@@ -65,7 +57,7 @@ main = do
   let initVars = GameState {
     world = boxMap 10
     ,playerpos = V2 3.5 4.5
-    ,playerdir = normalize $ V2 (-1) (-1)
+    ,playerdir = normalize $ V2 (0.5) (-0.5)
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
@@ -78,41 +70,38 @@ renderLoop :: ReaderT Config (StateT GameState IO) ()
 renderLoop = do
   let backgroundColor = SDL.V4 34 34 34 255
 
+  events <- SDL.pollEvents
   --TODO updateInput and quit signal
+  --TODO mouseLookAt
   let quitSignal = False
 
   SDL.clear =<< asks cRenderer
   screenSurface <- asks cSurface
   SDL.surfaceFillRect screenSurface Nothing backgroundColor
 
-  --TODO
   drawScreen
 
   SDL.updateWindowSurface =<< asks cWindow
-  liftIO $ threadDelay 60
+  liftIO $ threadDelay 6000
 
   unless quitSignal renderLoop
 \end{code}
 
 \begin{code}
 
---TODO https://github.com/adpextwindong/obelisk/blob/main/src/Obelisk/Effect/Renderer.hs#L190
 drawScreen :: ReaderT Config (StateT GameState IO) ()
 drawScreen = do
   (GameState w pdir ppos) <- get
 
-      -----
   let rayAnglePairs = rayHeads rayCount pdir
       rays = fmap fst rayAnglePairs :: [V2 Float]
       angles = fmap snd rayAnglePairs :: [Float]
 
       paths = shootRay (fromIntegral $ worldSize w) ppos <$> rays
       wallPoints = walkRayForWall w ppos <$> paths
-      ----
 
   renderer <- asks cRenderer
   liftIO . sequence_ $ (drawWall renderer ppos w) <$> zip3 wallPoints [0..] angles
-
 
 drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> ((Maybe Intersection), Float, Float) -> IO ()
 drawWall _ _ _ (Nothing, _, _) = return ()
