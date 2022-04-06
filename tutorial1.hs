@@ -101,17 +101,18 @@ drawDebug = do
   let verticalLines = btp <$> [((V2 x 0),(V2 x (fromIntegral ws))) | x <- [0.. fromIntegral ws]] :: [(V2 CInt, V2 CInt)]
       horizontalLines = btp <$> [((V2 0 y),(V2 (fromIntegral ws) y)) | y <- [0..(fromIntegral ws)]]
 
+  --Tiles
+  let inds = [(x,y) | x <- [0..ws - 1], y <- [0..ws - 1]]
+      quads = [(V2 x y, V2 (x+1) y, V2 x (y+1), V2 (x+1) (y+1)) |
+                  x <- fmap fromIntegral [0.. ws - 1], y <- fmap fromIntegral [0.. ws]]
+
+  sequence_ $ zip inds quads <&> (\((x,y), (vA,vB,vC,vD)) ->
+    let sampleColor = wallTypeToColor $ accessMap w (V2 x y) in
+      SDL.fillTriangle rend (gtp vA) (gtp vB) (gtp vC) sampleColor >>
+      SDL.fillTriangle rend (gtp vB) (gtp vC) (gtp vD) sampleColor)
+
   sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> verticalLines
   sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> horizontalLines
-
-  --TODO tiles
-{-
-  let inds = [(x,y) | x <- [0..ws - 1], y <- [0..ws - 1]]
-      quads = [(V2 x y, V2 (x+1) y, V2 x (y+1), V2 (x+1) (y+1)) | x <- [0.. fromIntegral ws - 1], y <- [0.. fromIntegral ws]]
-  sequence_ $ zip inds quads <&> (\((x,y), (vA,vB,vC,vD)) -> do
-    let sampleColor = wallTypeToColor $ accessMap w (V2 x y)
-    undefined
-    -}
 
 worldToPD ws = translateToPDCenter !*! zoomFactor !*! centerToLocalOrigin
   where
