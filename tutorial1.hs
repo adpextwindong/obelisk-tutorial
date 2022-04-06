@@ -91,7 +91,7 @@ renderLoop = do
 
 drawDebug  :: ReaderT Config (StateT GameState IO) ()
 drawDebug = do
-  (GameState w@(WorldTiles tiles ws) pdir ppos) <- get
+  (GameState w@(WorldTiles tiles ws) ppos pdir) <- get
   rend <- asks cRenderer
 
   --Affine Transformation Utility functions
@@ -114,6 +114,25 @@ drawDebug = do
 
   sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> verticalLines
   sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> horizontalLines
+
+  --Player Arrow
+  let playerT = translateT (ppos ^._x) (ppos ^._y)
+      arrowT = worldToPD ws !*! translateT (pdir ^._x) (pdir ^._y) !*! playerT !*! (rotationT $ vectorAngle pdir)
+      dirLen = norm pdir
+      arrowLength = 0.25
+      arrowWidth = 0.06
+      arrowHeadDisplacementT = translateT (1.05 * dirLen - arrowLength) 0.0
+      red = SDL.V4 255 0 0 255
+
+      arrowBase = ppos
+      arrowHead = ppos + normalize pdir
+
+  SDL.line rend (mapAft (worldToPD ws) arrowBase) (mapAft (worldToPD ws) arrowHead) red
+  SDL.fillTriangle rend (mapAft arrowT (V2 0.0 (-arrowWidth)))
+                        (mapAft arrowT (V2 arrowLength 0.0))
+                        (mapAft arrowT (V2 0.0 arrowWidth))
+                        (SDL.V4 255 51 51 255)
+
 
 worldToPD ws = translateToPDCenter !*! zoomFactor !*! centerToLocalOrigin
   where
@@ -141,6 +160,15 @@ zoomT scale = V3 (V3 scale 0 0)
                 (V3 0 scale 0)
                 (V3 0 0 1)
 
+vectorAngle :: V2 Float -> Float
+vectorAngle (V2 x y)
+  | y > 0 = atan2 y x
+  | otherwise = 2 * pi + atan2 y x
+
+rotationT :: Float -> V3 (V3 Float)
+rotationT theta = V3 (V3 (cos theta) (-sin theta) 0)
+                     (V3 (sin theta) (cos theta)  0)
+                     (V3  0           0           1)
 
 wallTypeToColor FullWall = filledTileColor
 wallTypeToColor EmptyWall = SDL.V4 34 34 34 maxBound
