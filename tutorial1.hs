@@ -1,4 +1,3 @@
-\begin{code}
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.Text as T
 import qualified SDL
@@ -87,9 +86,7 @@ renderLoop = do
   liftIO $ threadDelay 6000
 
   unless quitSignal renderLoop
-\end{code}
 
-\begin{code}
 
 drawDebug  :: ReaderT Config (StateT GameState IO) ()
 drawDebug = do
@@ -260,4 +257,3 @@ walkRayForWall w p (i@(Intersection _ checkInds) :path) = case accessMap w check
 rotation2 :: Float -> V2 (V2 Float)
 rotation2 theta = V2 (V2 (cos theta) (-sin theta))
                      (V2 (sin theta) (cos theta))
-\end{code}

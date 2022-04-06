@@ -14,7 +14,7 @@ executable DeltaFirst
 
 
 executable tutorial1
-  main-is: tutorial_1.lhs
+  main-is: tutorial1.hs
   hs-source-dirs:
     .
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
