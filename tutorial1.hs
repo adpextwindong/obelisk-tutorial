@@ -184,7 +184,6 @@ drawScreen = do
   let rayAnglePairs = rayHeads (fromIntegral rayCount) pdir
       rays = fmap fst rayAnglePairs :: [V2 Float]
       angles = fmap snd rayAnglePairs :: [Float]
-
       paths = shootRay (fromIntegral $ worldSize w) ppos <$> rays
       wallPoints = walkRayForWall w ppos <$> paths
 
@@ -197,14 +196,12 @@ drawScreen = do
 drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> ((Maybe Intersection), Float, Float) -> IO ()
 drawWall _ _ _ (Nothing, _, _) = return ()
 drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
-  let distanceToSlice = rayAngle * distance p intpos -- Permadi Fix
-                        -- norm $ intpos - p         -- Fish Eye
+  let distanceToSlice = norm $ intpos - p         -- Fish Eye --rayAngle * distance p intpos -- Permadi Fix
       projectedWallHeight = wallHeight / distanceToSlice
       wallTop     = screenMiddle - projectedWallHeight
       wallBottom  = screenMiddle + projectedWallHeight
       wallLeft    = rayIndex * fromIntegral wallWidth
       wallRight   = (rayIndex + 1) * fromIntegral wallWidth
-
 
   SDL.fillRectangle r (fmap floor $ V2 wallLeft wallTop) (fmap floor $ V2 wallRight wallBottom) filledTileColor
 
@@ -229,27 +226,30 @@ shootRay ws playerpos direction = mergeIntersections playerpos vints hints
 
     hints = boundedVertical ws $ yRayGridIntersections playerpos direction stepsY
 
-baseSteps :: [Float]
-baseSteps = [0.0 ..]
-
 upperBound :: Int -> Float -> Float -> Int
 upperBound ws axisPosition axisRay = if axisRay > 0
                                      then floor $ fromIntegral ws - axisPosition
                                      else floor axisPosition
 
-baseStepsBounded ws axisPosition axisRay = take (upperBound ws axisPosition axisRay) baseSteps
+baseStepsBounded :: Int -> Float -> Float -> [Float]
+baseStepsBounded ws axisPosition axisRay = take (upperBound ws axisPosition axisRay) [0.0 ..]
 
+boundedHorizontal :: Int -> [V2 Float] -> [V2 Float]
 boundedHorizontal ws = takeWhile (\(V2 _ y) -> y > 0 && y < fromIntegral ws)
 
+boundedVertical :: Int -> [V2 Float] -> [V2 Float]
 boundedVertical ws = takeWhile (\(V2 x _) -> x > 0 && x < fromIntegral ws)
 
+epsilon :: Float
 epsilon = 0.00001
 
+xRayGridIntersections :: V2 Float -> V2 Float -> [Float] -> [V2 Float]
 xRayGridIntersections p nr bss = (p +) . (nr ^*) <$> stepScales
   where
     firstStep = abs $ deltaFirst (p ^._x) (nr ^._x)
     stepScales = [(firstStep + x + epsilon) / abs (nr ^._x) | x <- bss]
 
+yRayGridIntersections :: V2 Float -> V2 Float -> [Float] -> [V2 Float]
 yRayGridIntersections p nr bss = (p +) . (nr ^*) <$> stepScales
   where
     firstStep = abs $ deltaFirst (p ^._y) (nr ^._y)
@@ -260,7 +260,7 @@ deltaFirst px vx = if vx < 0
                    then fromIntegral (floor px) - px
                    else fromIntegral (ceiling px) - px
 
-
+mergeIntersections :: V2 Float -> [V2 Float] -> [V2 Float] -> [Intersection]
 mergeIntersections playerpos v@(x:xs) h@(y:ys) = if qd playerpos x < qd playerpos y
                                                  then vX : mergeIntersections playerpos xs h
                                                  else hY : mergeIntersections playerpos v ys
