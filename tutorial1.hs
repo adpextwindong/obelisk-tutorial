@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
 import qualified Data.Text as T
 import qualified SDL
 import qualified SDL.Primitive as SDL
@@ -55,7 +56,7 @@ main = do
   }
 
   let initVars = GameState {
-    world = singleMap 10
+    world = boxMap 10
     ,playerpos = V2 5.0 5.0
     ,playerdir = normalize $ V2 (-0.5) (-0.5)
   }
@@ -104,12 +105,12 @@ drawDebug = do
   --Tiles
   let inds = [(x,y) | x <- [0..ws - 1], y <- [0..ws - 1]]
       quads = [(V2 x y, V2 (x+1) y, V2 x (y+1), V2 (x+1) (y+1)) |
-                  x <- fmap fromIntegral [0.. ws - 1], y <- fmap fromIntegral [0.. ws]]
+                  x <- fmap fromIntegral [0.. ws - 1], y <- fmap fromIntegral [0.. ws - 1]]
 
-  sequence_ $ zip inds quads <&> (\((x,y), (vA,vB,vC,vD)) ->
-    let sampleColor = wallTypeToColor $ accessMap w (V2 x y) in
-      SDL.fillTriangle rend (gtp vA) (gtp vB) (gtp vC) sampleColor >>
-      SDL.fillTriangle rend (gtp vB) (gtp vC) (gtp vD) sampleColor)
+  sequence_ $ zip inds quads <&> (\(ind@(x,y), (vA,vB,vC,vD)) -> do
+    let sampleColor = wallTypeToColor $ accessMap w (V2 x y)
+    SDL.fillTriangle rend (gtp vA) (gtp vB) (gtp vC) sampleColor
+    SDL.fillTriangle rend (gtp vB) (gtp vC) (gtp vD) sampleColor)
 
   sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> verticalLines
   sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> horizontalLines
@@ -183,10 +184,10 @@ boxMap n = WorldTiles tiles n
   where
     top = replicate n FullWall
     middle = [FullWall] ++ replicate (n - 2) EmptyWall ++ [FullWall]
-    tiles = listArray (0,((n*n) - 1)) $ top ++ middle ++ top
+    tiles = listArray (0,((n*n) - 1)) $ concat $ [top] ++ (replicate (n - 2) middle) ++ [top]
 
 accessMap :: WorldTiles -> V2 Int -> Wall
-accessMap w (V2 x y) = tiles w ! ((x * worldSize w) + y)
+accessMap w (V2 x y) = tiles w ! ((x * fromIntegral (worldSize w)) + y)
 
 rayHeads playerpos playerdir = fmap ray cameraPlaneSweep
   where
