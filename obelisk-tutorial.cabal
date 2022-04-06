@@ -4,6 +4,16 @@ name:         obelisk-tutorial
 version:      0.1.0.0
 build-type:   Simple
 
+library
+  exposed-modules:
+    Obelisk.Math.Vector
+    Obelisk.Math.Homogenous
+  hs-source-dirs:
+    src
+  build-depends:
+    base >= 4.7 && < 5
+   ,linear
+
 executable DeltaFirst
   main-is: src/Obelisk/Diagrams/DeltaFirst.hs
   build-depends:
@@ -28,3 +38,4 @@ executable tutorial1
    ,text
    ,array
    ,bifunctor
+   ,obelisk-tutorial

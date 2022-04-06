@@ -11,6 +11,10 @@ import Foreign.C.Types
 import Control.Lens
 import Control.Concurrent
 import Data.Bifunctor
+import Data.Maybe
+
+import Obelisk.Math.Vector
+import Obelisk.Math.Homogenous
 
 data Config = Config {
                 cWindow :: SDL.Window
@@ -18,11 +22,6 @@ data Config = Config {
                ,cSurface :: SDL.Surface
               }
 
-rayCount = 320
-(screenWidth, screenHeight) = (640,480)
-screenMiddle = fromIntegral screenHeight / 2
-wallWidth = screenWidth `div` rayCount
-wallHeight = 64
 
 data GameState = GameState {
                     world :: WorldTiles
@@ -38,6 +37,30 @@ data WorldTiles = WorldTiles {
                   }
 
 data Intersection = Intersection (V2 Float) (V2 Int)
+
+singleMap :: Int -> WorldTiles
+singleMap n = WorldTiles tiles n
+  where
+    tiles = listArray (0,((n*n)-1)) $ [FullWall] ++ replicate ((n * n) - 1) EmptyWall
+
+boxMap :: Int -> WorldTiles
+boxMap n = WorldTiles tiles n
+  where
+    top = replicate n FullWall
+    middle = [FullWall] ++ replicate (n - 2) EmptyWall ++ [FullWall]
+    tiles = listArray (0,((n*n) - 1)) $ concat $ [top] ++ (replicate (n - 2) middle) ++ [top]
+
+accessMap :: WorldTiles -> V2 Int -> Wall
+accessMap w (V2 x y) = tiles w ! ((x * fromIntegral (worldSize w)) + y)
+
+--
+-- Demo Constants
+--
+rayCount = 320
+(screenWidth, screenHeight) = (640,480)
+screenMiddle = fromIntegral screenHeight / 2
+wallWidth = screenWidth `div` rayCount
+wallHeight = 64
 
 main = do
   SDL.initialize [SDL.InitVideo]
@@ -57,8 +80,8 @@ main = do
 
   let initVars = GameState {
     world = boxMap 10
-    ,playerpos = V2 5.0 5.0
-    ,playerdir = normalize $ V2 (-0.5) (-0.5)
+    ,playerpos = V2 8.0 8.0
+    ,playerdir = normalize $ V2 (1.0) (1.0)
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
@@ -80,14 +103,17 @@ renderLoop = do
   screenSurface <- asks cSurface
   SDL.surfaceFillRect screenSurface Nothing backgroundColor
 
-  --drawScreen
-  drawDebug
+  --drawDebug
+  drawScreen
 
   SDL.updateWindowSurface =<< asks cWindow
   liftIO $ threadDelay 6000
 
   unless quitSignal renderLoop
 
+--
+-- Debug UI
+--
 
 drawDebug  :: ReaderT Config (StateT GameState IO) ()
 drawDebug = do
@@ -141,45 +167,21 @@ worldToPD ws = translateToPDCenter !*! zoomFactor !*! centerToLocalOrigin
     zoomFactor = zoomT $ fromIntegral screenHeight / fromIntegral ws * 0.95
     translateToPDCenter = translateT (fromIntegral screenWidth / 2.0) (fromIntegral screenHeight / 2.0)
 
-mapAft :: V3 (V3 Float) -> V2 Float -> V2 CInt
-mapAft t = dC . (fmap floor . (t !*)) . hC
-
-hC :: (Num a) => V2 a -> V3 a
-hC (V2 x y) = V3 x y 1
-
-dC :: (Num a) => V3 a -> V2 a
-dC (V3 x y _) = V2 x y
-
-translateT :: (Num a) => a -> a -> V3 (V3 a)
-translateT x y = V3 (V3 1 0 x)
-                   (V3 0 1 y)
-                   (V3 0 0 1)
-
-zoomT :: (Num a) => a -> V3 (V3 a)
-zoomT scale = V3 (V3 scale 0 0)
-                (V3 0 scale 0)
-                (V3 0 0 1)
-
-vectorAngle :: V2 Float -> Float
-vectorAngle (V2 x y)
-  | y > 0 = atan2 y x
-  | otherwise = 2 * pi + atan2 y x
-
-rotationT :: Float -> V3 (V3 Float)
-rotationT theta = V3 (V3 (cos theta) (-sin theta) 0)
-                     (V3 (sin theta) (cos theta)  0)
-                     (V3  0           0           1)
-
 wallTypeToColor FullWall = filledTileColor
 wallTypeToColor EmptyWall = SDL.V4 34 34 34 maxBound
 white = SDL.V4 255 255 255 255
 filledTileColor = SDL.V4 51 51 102 maxBound
+yellow :: SDL.Color
+yellow = SDL.V4 255 255 0 maxBound
 
+--
+-- Renderer
+--
 drawScreen :: ReaderT Config (StateT GameState IO) ()
 drawScreen = do
-  (GameState w pdir ppos) <- get
+  (GameState w ppos pdir) <- get
 
-  let rayAnglePairs = rayHeads rayCount pdir
+  let rayAnglePairs = rayHeads (fromIntegral rayCount) pdir
       rays = fmap fst rayAnglePairs :: [V2 Float]
       angles = fmap snd rayAnglePairs :: [Float]
 
@@ -189,10 +191,14 @@ drawScreen = do
   renderer <- asks cRenderer
   liftIO . sequence_ $ (drawWall renderer ppos w) <$> zip3 wallPoints [0..] angles
 
+  -- Debug Wall Point circles
+  --liftIO . sequence_ $ catMaybes wallPoints <&> (\(Intersection pos _) -> SDL.circle renderer (mapAft (worldToPD (worldSize w)) pos) 1 yellow)
+
 drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> ((Maybe Intersection), Float, Float) -> IO ()
 drawWall _ _ _ (Nothing, _, _) = return ()
 drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
-  let distanceToSlice = norm $ intpos - p
+  let distanceToSlice = rayAngle * distance p intpos -- Permadi Fix
+                        -- norm $ intpos - p         -- Fish Eye
       projectedWallHeight = wallHeight / distanceToSlice
       wallTop     = screenMiddle - projectedWallHeight
       wallBottom  = screenMiddle + projectedWallHeight
@@ -202,28 +208,14 @@ drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
 
   SDL.fillRectangle r (fmap floor $ V2 wallLeft wallTop) (fmap floor $ V2 wallRight wallBottom) filledTileColor
 
-singleMap :: Int -> WorldTiles
-singleMap n = WorldTiles tiles n
+rayHeads :: Int -> V2 Float -> [(V2 Float, Float)]
+rayHeads rayCount playerdir = fmap ray cameraPlaneSweep
   where
-    tiles = listArray (0,((n*n)-1)) $ [FullWall] ++ replicate ((n * n) - 1) EmptyWall
-
-boxMap :: Int -> WorldTiles
-boxMap n = WorldTiles tiles n
-  where
-    top = replicate n FullWall
-    middle = [FullWall] ++ replicate (n - 2) EmptyWall ++ [FullWall]
-    tiles = listArray (0,((n*n) - 1)) $ concat $ [top] ++ (replicate (n - 2) middle) ++ [top]
-
-accessMap :: WorldTiles -> V2 Int -> Wall
-accessMap w (V2 x y) = tiles w ! ((x * fromIntegral (worldSize w)) + y)
-
-rayHeads playerpos playerdir = fmap ray cameraPlaneSweep
-  where
-   cameraPlaneSweep = [2.0 * (x / fromIntegral screenWidth) - 1.0 | x <- [0 .. fromIntegral screenWidth - 1]]
+   cameraPlaneSweep = [2.0 * (x / fromIntegral rayCount) - 1.0 | x <- [0 .. fromIntegral rayCount - 1]]
    cameraPlane = normalize $ playerdir *! rotation2 (pi / 2.0)
    cosThetaBetween v u = dot u v / (norm u * norm v)
    ray screenDelta =
-    let ray = normalize $ playerdir - cameraPlane ^* screenDelta in (ray, cosThetaBetween ray playerdir)
+    let ray = normalize $ playerdir - (cameraPlane ^* screenDelta) in (ray, cosThetaBetween ray playerdir)
 
 shootRay :: Int -> V2 Float -> V2 Float -> [Intersection]
 shootRay ws playerpos direction = mergeIntersections playerpos vints hints
@@ -283,7 +275,3 @@ walkRayForWall _ _ [] = Nothing
 walkRayForWall w p (i@(Intersection _ checkInds) :path) = case accessMap w checkInds of
                                          FullWall -> Just i
                                          _ -> walkRayForWall w p path
-
-rotation2 :: Float -> V2 (V2 Float)
-rotation2 theta = V2 (V2 (cos theta) (-sin theta))
-                     (V2 (sin theta) (cos theta))
