@@ -33,25 +33,26 @@ data Wall = FullWall | EmptyWall
 
 data WorldTiles = WorldTiles {
                     tiles :: Array Int Wall
-                   ,worldSize :: Int
                   }
 
 data Intersection = Intersection (V2 Float) (V2 Int)
 
-singleMap :: Int -> WorldTiles
-singleMap n = WorldTiles tiles n
+singleMap :: WorldTiles
+singleMap = WorldTiles tiles
   where
+    n = worldSize
     tiles = listArray (0,((n*n)-1)) $ [FullWall] ++ replicate ((n * n) - 1) EmptyWall
 
-boxMap :: Int -> WorldTiles
-boxMap n = WorldTiles tiles n
+boxMap :: WorldTiles
+boxMap = WorldTiles tiles
   where
+    n = worldSize
     top = replicate n FullWall
     middle = [FullWall] ++ replicate (n - 2) EmptyWall ++ [FullWall]
     tiles = listArray (0,((n*n) - 1)) $ concat $ [top] ++ (replicate (n - 2) middle) ++ [top]
 
 accessMap :: WorldTiles -> V2 Int -> Wall
-accessMap w (V2 x y) = tiles w ! ((x * fromIntegral (worldSize w)) + y)
+accessMap w (V2 x y) = tiles w ! ((x * fromIntegral worldSize) + y)
 
 --
 -- Demo Constants
@@ -61,6 +62,7 @@ rayCount = 320
 screenMiddle = fromIntegral screenHeight / 2
 wallWidth = screenWidth `div` rayCount
 wallHeight = 64
+worldSize = 10
 
 main = do
   SDL.initialize [SDL.InitVideo]
@@ -79,7 +81,7 @@ main = do
   }
 
   let initVars = GameState {
-    world = boxMap 10
+    world = boxMap
     ,playerpos = V2 8.0 8.0
     ,playerdir = normalize $ V2 (1.0) (1.0)
   }
@@ -117,21 +119,21 @@ renderLoop = do
 
 drawDebug  :: ReaderT Config (StateT GameState IO) ()
 drawDebug = do
-  (GameState w@(WorldTiles tiles ws) ppos pdir) <- get
+  (GameState w@(WorldTiles tiles) ppos pdir) <- get
   rend <- asks cRenderer
 
   --Affine Transformation Utility functions
-  let gtp = mapAft $ worldToPD ws
+  let gtp = mapAft worldToPD
       btp = bimap gtp gtp
 
   --Grid Lines
-  let verticalLines = btp <$> [((V2 x 0),(V2 x (fromIntegral ws))) | x <- [0.. fromIntegral ws]] :: [(V2 CInt, V2 CInt)]
-      horizontalLines = btp <$> [((V2 0 y),(V2 (fromIntegral ws) y)) | y <- [0..(fromIntegral ws)]]
+  let verticalLines = btp <$> [((V2 x 0),(V2 x (fromIntegral worldSize))) | x <- [0.. fromIntegral worldSize]] :: [(V2 CInt, V2 CInt)]
+      horizontalLines = btp <$> [((V2 0 y),(V2 (fromIntegral worldSize) y)) | y <- [0..(fromIntegral worldSize)]]
 
   --Tiles
-  let inds = [(x,y) | x <- [0..ws - 1], y <- [0..ws - 1]]
+  let inds = [(x,y) | x <- [0..worldSize - 1], y <- [0..worldSize - 1]]
       quads = [(V2 x y, V2 (x+1) y, V2 x (y+1), V2 (x+1) (y+1)) |
-                  x <- fmap fromIntegral [0.. ws - 1], y <- fmap fromIntegral [0.. ws - 1]]
+                  x <- fmap fromIntegral [0.. worldSize - 1], y <- fmap fromIntegral [0.. worldSize - 1]]
 
   sequence_ $ zip inds quads <&> (\(ind@(x,y), (vA,vB,vC,vD)) -> do
     let sampleColor = wallTypeToColor $ accessMap w (V2 x y)
@@ -143,7 +145,7 @@ drawDebug = do
 
   --Player Arrow
   let playerT = translateT (ppos ^._x) (ppos ^._y)
-      arrowT = worldToPD ws !*! translateT (pdir ^._x) (pdir ^._y) !*! playerT !*! (rotationT $ vectorAngle pdir)
+      arrowT = worldToPD !*! translateT (pdir ^._x) (pdir ^._y) !*! playerT !*! (rotationT $ vectorAngle pdir)
       dirLen = norm pdir
       arrowLength = 0.25
       arrowWidth = 0.06
@@ -153,18 +155,18 @@ drawDebug = do
       arrowBase = ppos
       arrowHead = ppos + normalize pdir
 
-  SDL.line rend (mapAft (worldToPD ws) arrowBase) (mapAft (worldToPD ws) arrowHead) red
+  SDL.line rend (mapAft worldToPD arrowBase) (mapAft worldToPD arrowHead) red
   SDL.fillTriangle rend (mapAft arrowT (V2 0.0 (-arrowWidth)))
                         (mapAft arrowT (V2 arrowLength 0.0))
                         (mapAft arrowT (V2 0.0 arrowWidth))
                         (SDL.V4 255 51 51 255)
 
 
-worldToPD ws = translateToPDCenter !*! zoomFactor !*! centerToLocalOrigin
+worldToPD = translateToPDCenter !*! zoomFactor !*! centerToLocalOrigin
   where
-    delta = fromIntegral ws / 2
+    delta = fromIntegral worldSize / 2
     centerToLocalOrigin = translateT (-delta) (-delta)
-    zoomFactor = zoomT $ fromIntegral screenHeight / fromIntegral ws * 0.95
+    zoomFactor = zoomT $ fromIntegral screenHeight / fromIntegral worldSize * 0.95
     translateToPDCenter = translateT (fromIntegral screenWidth / 2.0) (fromIntegral screenHeight / 2.0)
 
 wallTypeToColor FullWall = filledTileColor
@@ -184,7 +186,7 @@ drawScreen = do
   let rayAnglePairs = rayHeads (fromIntegral rayCount) pdir
       rays = fmap fst rayAnglePairs :: [V2 Float]
       angles = fmap snd rayAnglePairs :: [Float]
-      paths = shootRay (fromIntegral $ worldSize w) ppos <$> rays
+      paths = shootRay ppos <$> rays
       wallPoints = walkRayForWall w ppos <$> paths
 
   renderer <- asks cRenderer
@@ -214,31 +216,31 @@ rayHeads rayCount playerdir = fmap ray cameraPlaneSweep
    ray screenDelta =
     let ray = normalize $ playerdir - (cameraPlane ^* screenDelta) in (ray, cosThetaBetween ray playerdir)
 
-shootRay :: Int -> V2 Float -> V2 Float -> [Intersection]
-shootRay ws playerpos direction = mergeIntersections playerpos vints hints
+shootRay :: V2 Float -> V2 Float -> [Intersection]
+shootRay playerpos direction = mergeIntersections playerpos vints hints
   where
-    stepsX = baseStepsBounded ws (playerpos ^._x) (direction ^._x)
-    stepsY = baseStepsBounded ws (playerpos ^._y) (direction ^._y)
+    stepsX = baseStepsBounded (playerpos ^._x) (direction ^._x)
+    stepsY = baseStepsBounded (playerpos ^._y) (direction ^._y)
 
     vints = if direction ^._x == 0.0
             then [] -- No vertical intersections if literally looking along x axis
-            else boundedHorizontal ws $ xRayGridIntersections playerpos direction stepsX
+            else boundedHorizontal $ xRayGridIntersections playerpos direction stepsX
 
-    hints = boundedVertical ws $ yRayGridIntersections playerpos direction stepsY
+    hints = boundedVertical $ yRayGridIntersections playerpos direction stepsY
 
-upperBound :: Int -> Float -> Float -> Int
-upperBound ws axisPosition axisRay = if axisRay > 0
-                                     then floor $ fromIntegral ws - axisPosition
+upperBound :: Float -> Float -> Int
+upperBound axisPosition axisRay = if axisRay > 0
+                                     then floor $ fromIntegral worldSize - axisPosition
                                      else floor axisPosition
 
-baseStepsBounded :: Int -> Float -> Float -> [Float]
-baseStepsBounded ws axisPosition axisRay = take (upperBound ws axisPosition axisRay) [0.0 ..]
+baseStepsBounded :: Float -> Float -> [Float]
+baseStepsBounded axisPosition axisRay = take (upperBound axisPosition axisRay) [0.0 ..]
 
-boundedHorizontal :: Int -> [V2 Float] -> [V2 Float]
-boundedHorizontal ws = takeWhile (\(V2 _ y) -> y > 0 && y < fromIntegral ws)
+boundedHorizontal :: [V2 Float] -> [V2 Float]
+boundedHorizontal = takeWhile (\(V2 _ y) -> y > 0 && y < fromIntegral worldSize)
 
-boundedVertical :: Int -> [V2 Float] -> [V2 Float]
-boundedVertical ws = takeWhile (\(V2 x _) -> x > 0 && x < fromIntegral ws)
+boundedVertical :: [V2 Float] -> [V2 Float]
+boundedVertical = takeWhile (\(V2 x _) -> x > 0 && x < fromIntegral worldSize)
 
 epsilon :: Float
 epsilon = 0.00001
