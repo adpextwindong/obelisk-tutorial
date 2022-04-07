@@ -43,6 +43,8 @@ singleMap = WorldTiles tiles
     n = worldSize
     tiles = listArray (0,(n*n)-1) $ FullWall : replicate ((n * n) - 1) EmptyWall
 
+emptyMap = let n = (worldSize * worldSize) - 1 in WorldTiles $ listArray (0,n) $ replicate n EmptyWall
+
 boxMap :: WorldTiles
 boxMap = WorldTiles tiles
   where
@@ -81,7 +83,7 @@ main = do
   }
 
   let initVars = GameState {
-    world = boxMap
+    world = emptyMap
     ,playerpos = V2 8.0 8.0
     ,playerdir = normalize $ V2 1 1
   }
