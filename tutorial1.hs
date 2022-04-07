@@ -15,6 +15,14 @@ import Data.Maybe
 
 import Obelisk.Math.Vector
 import Obelisk.Math.Homogenous
+import qualified Debug.Trace as Debug
+
+initVars = GameState {
+  world = emptyMap
+  ,playerpos = V2 8.0 8.0
+  ,playerdir = normalize $ V2 1 1
+}
+
 
 data Config = Config {
                 cWindow :: SDL.Window
@@ -30,10 +38,11 @@ data GameState = GameState {
                  }
 
 data Wall = FullWall | EmptyWall
+  deriving Show
 
 data WorldTiles = WorldTiles {
                     tiles :: Array Int Wall
-                  }
+                  } deriving Show
 
 data Intersection = Intersection (V2 Float) (V2 Int)
 
@@ -43,7 +52,7 @@ singleMap = WorldTiles tiles
     n = worldSize
     tiles = listArray (0,(n*n)-1) $ FullWall : replicate ((n * n) - 1) EmptyWall
 
-emptyMap = let n = (worldSize * worldSize) - 1 in WorldTiles $ listArray (0,n) $ replicate n EmptyWall
+emptyMap = let n = (worldSize * worldSize) in WorldTiles $ listArray (0,n) $ replicate n EmptyWall
 
 boxMap :: WorldTiles
 boxMap = WorldTiles tiles
@@ -80,12 +89,6 @@ main = do
     cWindow = window,
     cRenderer = screenRenderer,
     cSurface = screenSurface
-  }
-
-  let initVars = GameState {
-    world = emptyMap
-    ,playerpos = V2 8.0 8.0
-    ,playerdir = normalize $ V2 1 1
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
@@ -221,6 +224,8 @@ rayHeads rayCount playerdir = fmap ray cameraPlaneSweep
 shootRay :: V2 Float -> V2 Float -> [Intersection]
 shootRay playerpos direction = mergeIntersections playerpos vints hints
   where
+    -- p + r(t)
+    -- Compute the t parameters to evaluate the ray equation
     stepsX = baseStepsBounded (playerpos ^._x) (direction ^._x)
     stepsY = baseStepsBounded (playerpos ^._y) (direction ^._y)
 
