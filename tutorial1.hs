@@ -41,7 +41,7 @@ singleMap :: WorldTiles
 singleMap = WorldTiles tiles
   where
     n = worldSize
-    tiles = listArray (0,((n*n)-1)) $ [FullWall] ++ replicate ((n * n) - 1) EmptyWall
+    tiles = listArray (0,(n*n)-1) $ FullWall : replicate ((n * n) - 1) EmptyWall
 
 boxMap :: WorldTiles
 boxMap = WorldTiles tiles
@@ -49,7 +49,7 @@ boxMap = WorldTiles tiles
     n = worldSize
     top = replicate n FullWall
     middle = [FullWall] ++ replicate (n - 2) EmptyWall ++ [FullWall]
-    tiles = listArray (0,((n*n) - 1)) $ concat $ [top] ++ (replicate (n - 2) middle) ++ [top]
+    tiles = listArray (0,(n*n) - 1) $ concat $ [top] ++ replicate (n - 2) middle ++ [top]
 
 accessMap :: WorldTiles -> V2 Int -> Wall
 accessMap w (V2 x y) = tiles w ! ((x * fromIntegral worldSize) + y)
@@ -83,7 +83,7 @@ main = do
   let initVars = GameState {
     world = boxMap
     ,playerpos = V2 8.0 8.0
-    ,playerdir = normalize $ V2 (1.0) (1.0)
+    ,playerdir = normalize $ V2 1 1
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
@@ -127,8 +127,8 @@ drawDebug = do
       btp = bimap gtp gtp
 
   --Grid Lines
-  let verticalLines = btp <$> [((V2 x 0),(V2 x (fromIntegral worldSize))) | x <- [0.. fromIntegral worldSize]] :: [(V2 CInt, V2 CInt)]
-      horizontalLines = btp <$> [((V2 0 y),(V2 (fromIntegral worldSize) y)) | y <- [0..(fromIntegral worldSize)]]
+  let verticalLines = btp <$> [(V2 x 0, V2 x (fromIntegral worldSize)) | x <- [0.. fromIntegral worldSize]]
+      horizontalLines = btp <$> [(V2 0 y, V2 (fromIntegral worldSize) y) | y <- [0..(fromIntegral worldSize)]]
 
   --Tiles
   let inds = [(x,y) | x <- [0..worldSize - 1], y <- [0..worldSize - 1]]
@@ -140,12 +140,12 @@ drawDebug = do
     SDL.fillTriangle rend (gtp vA) (gtp vB) (gtp vC) sampleColor
     SDL.fillTriangle rend (gtp vB) (gtp vC) (gtp vD) sampleColor)
 
-  sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> verticalLines
-  sequence_ $ uncurry (\a b -> SDL.line rend a b white) <$> horizontalLines
+  sequence_ $ (\(a, b) -> SDL.line rend a b white) <$> verticalLines
+  sequence_ $ (\(a, b) -> SDL.line rend a b white) <$> horizontalLines
 
   --Player Arrow
   let playerT = translateT (ppos ^._x) (ppos ^._y)
-      arrowT = worldToPD !*! translateT (pdir ^._x) (pdir ^._y) !*! playerT !*! (rotationT $ vectorAngle pdir)
+      arrowT = worldToPD !*! translateT (pdir ^._x) (pdir ^._y) !*! playerT !*! rotationT (vectorAngle pdir)
       dirLen = norm pdir
       arrowLength = 0.25
       arrowWidth = 0.06
@@ -190,12 +190,12 @@ drawScreen = do
       wallPoints = walkRayForWall w ppos <$> paths
 
   renderer <- asks cRenderer
-  liftIO . sequence_ $ (drawWall renderer ppos w) <$> zip3 wallPoints [0..] angles
+  liftIO . sequence_ $ drawWall renderer ppos w <$> zip3 wallPoints [0..] angles
 
   -- Debug Wall Point circles
   --liftIO . sequence_ $ catMaybes wallPoints <&> (\(Intersection pos _) -> SDL.circle renderer (mapAft (worldToPD (worldSize w)) pos) 1 yellow)
 
-drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> ((Maybe Intersection), Float, Float) -> IO ()
+drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> (Maybe Intersection, Float, Float) -> IO ()
 drawWall _ _ _ (Nothing, _, _) = return ()
 drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
   let distanceToSlice = norm $ intpos - p         -- Fish Eye --rayAngle * distance p intpos -- Permadi Fix
@@ -205,7 +205,7 @@ drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
       wallLeft    = rayIndex * fromIntegral wallWidth
       wallRight   = (rayIndex + 1) * fromIntegral wallWidth
 
-  SDL.fillRectangle r (fmap floor $ V2 wallLeft wallTop) (fmap floor $ V2 wallRight wallBottom) filledTileColor
+  SDL.fillRectangle r (floor <$> V2 wallLeft wallTop) (floor <$> V2 wallRight wallBottom) filledTileColor
 
 rayHeads :: Int -> V2 Float -> [(V2 Float, Float)]
 rayHeads rayCount playerdir = fmap ray cameraPlaneSweep
