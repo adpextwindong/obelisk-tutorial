@@ -18,7 +18,7 @@ import Obelisk.Math.Homogenous
 import qualified Debug.Trace as Debug
 
 initVars = GameState {
-  world = emptyMap
+  world = boxMap
   ,playerpos = V2 8.0 8.0
   ,playerdir = normalize $ V2 1 1
 }
@@ -224,24 +224,11 @@ rayHeads rayCount playerdir = fmap ray cameraPlaneSweep
 shootRay :: V2 Float -> V2 Float -> [Intersection]
 shootRay playerpos direction = mergeIntersections playerpos vints hints
   where
-    -- p + r(t)
-    -- Compute the t parameters to evaluate the ray equation
-    stepsX = baseStepsBounded (playerpos ^._x) (direction ^._x)
-    stepsY = baseStepsBounded (playerpos ^._y) (direction ^._y)
-
     vints = if direction ^._x == 0.0
             then [] -- No vertical intersections if literally looking along x axis
-            else boundedHorizontal $ xRayGridIntersections playerpos direction stepsX
+            else boundedHorizontal $ xRayGridIntersections playerpos direction
 
-    hints = boundedVertical $ yRayGridIntersections playerpos direction stepsY
-
-upperBound :: Float -> Float -> Int
-upperBound axisPosition axisRay = if axisRay > 0
-                                     then floor $ fromIntegral worldSize - axisPosition
-                                     else floor axisPosition
-
-baseStepsBounded :: Float -> Float -> [Float]
-baseStepsBounded axisPosition axisRay = take (upperBound axisPosition axisRay) [0.0 ..]
+    hints = boundedVertical $ yRayGridIntersections playerpos direction
 
 boundedHorizontal :: [V2 Float] -> [V2 Float]
 boundedHorizontal = takeWhile (\(V2 _ y) -> y > 0 && y < fromIntegral worldSize)
@@ -249,25 +236,30 @@ boundedHorizontal = takeWhile (\(V2 _ y) -> y > 0 && y < fromIntegral worldSize)
 boundedVertical :: [V2 Float] -> [V2 Float]
 boundedVertical = takeWhile (\(V2 x _) -> x > 0 && x < fromIntegral worldSize)
 
-epsilon :: Float
-epsilon = 0.00001
-
-xRayGridIntersections :: V2 Float -> V2 Float -> [Float] -> [V2 Float]
-xRayGridIntersections p nr bss = (p +) . (nr ^*) <$> stepScales
+xRayGridIntersections :: V2 Float -> V2 Float -> [V2 Float]
+xRayGridIntersections p nr = (p +) . (nr ^*) <$> stepScales
   where
     firstStep = abs $ deltaFirst (p ^._x) (nr ^._x)
-    stepScales = [(firstStep + x + epsilon) / abs (nr ^._x) | x <- bss]
+    stepScales = [(firstStep + x + epsilon) / abs (nr ^._x) | x <- take (upperBound (p^._x) (nr ^._x)) [0.0 ..]]
 
-yRayGridIntersections :: V2 Float -> V2 Float -> [Float] -> [V2 Float]
-yRayGridIntersections p nr bss = (p +) . (nr ^*) <$> stepScales
+yRayGridIntersections :: V2 Float -> V2 Float -> [V2 Float]
+yRayGridIntersections p nr = (p +) . (nr ^*) <$> stepScales
   where
     firstStep = abs $ deltaFirst (p ^._y) (nr ^._y)
-    stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- bss]
+    stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- take (upperBound (p^._y) (nr ^._y)) [0.0 ..]]
+
+epsilon :: Float
+epsilon = 0.00001
 
 deltaFirst :: Float -> Float -> Float
 deltaFirst px vx = if vx < 0
                    then fromIntegral (floor px) - px
                    else fromIntegral (ceiling px) - px
+
+upperBound :: Float -> Float -> Int
+upperBound axisPosition axisRay = if axisRay > 0
+                                  then floor $ fromIntegral worldSize - axisPosition
+                                  else floor axisPosition
 
 mergeIntersections :: V2 Float -> [V2 Float] -> [V2 Float] -> [Intersection]
 mergeIntersections playerpos v@(x:xs) h@(y:ys) = if qd playerpos x < qd playerpos y
@@ -281,6 +273,7 @@ mergeIntersections _ xs [] = (\x -> Intersection x $ fmap truncate x) <$> xs
 
 walkRayForWall :: WorldTiles -> V2 Float -> [Intersection] -> Maybe Intersection
 walkRayForWall _ _ [] = Nothing
-walkRayForWall w p (i@(Intersection _ checkInds) :path) = case accessMap w checkInds of
-                                         FullWall -> Just i
-                                         _ -> walkRayForWall w p path
+walkRayForWall w p (i@(Intersection _ checkInds) :path) =
+  case accessMap w checkInds of
+    FullWall -> Just i
+    _ -> walkRayForWall w p path
