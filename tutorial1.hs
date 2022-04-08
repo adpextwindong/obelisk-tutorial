@@ -217,9 +217,9 @@ rayHeads rayCount playerdir = fmap ray cameraPlaneSweep
   where
    cameraPlaneSweep = [2.0 * (x / fromIntegral rayCount) - 1.0 | x <- [0 .. fromIntegral rayCount - 1]]
    cameraPlane = normalize $ playerdir *! rotation2 (pi / 2.0)
-   cosThetaBetween v u = dot u v / (norm u * norm v)
+   angleBetween v u = dot u v / (norm u * norm v)
    ray screenDelta =
-    let ray = normalize $ playerdir - (cameraPlane ^* screenDelta) in (ray, cosThetaBetween ray playerdir)
+    let ray = normalize $ playerdir - (cameraPlane ^* screenDelta) in (ray, angleBetween ray playerdir)
 
 shootRay :: V2 Float -> V2 Float -> [Intersection]
 shootRay playerpos direction = mergeIntersections playerpos vints hints
