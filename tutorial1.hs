@@ -248,6 +248,22 @@ yRayGridIntersections p nr = (p +) . (nr ^*) <$> stepScales
     firstStep = abs $ deltaFirst (p ^._y) (nr ^._y)
     stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- take (upperBound (p^._y) (nr ^._y)) [0.0 ..]]
 
+
+{-
+TODO optimize out takeWhile and replace with a min between upperBound (the regular steps in therayAxis till it goes out of bound) and the other axis. for example for x:
+case PositiveRay
+p + r.x*t = ws
+t = floor $ (ws - p) / r.x
+
+NegativeRay
+
+p + r.x*t = 0
+r.x*t = -p
+t = floor $ -p / r.x
+
+TODO test this
+-}
+
 epsilon :: Float
 epsilon = 0.00001
 
