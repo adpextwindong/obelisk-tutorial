@@ -18,7 +18,7 @@ import Obelisk.Math.Homogenous
 import qualified Debug.Trace as Debug
 
 initVars = GameState {
-  world = boxMap
+  world = emptyMap
   ,playerpos = V2 8.0 8.0
   ,playerdir = normalize $ V2 1 1
 }
@@ -240,19 +240,39 @@ xRayGridIntersections :: V2 Float -> V2 Float -> [V2 Float]
 xRayGridIntersections p nr = (p +) . (nr ^*) <$> stepScales
   where
     firstStep = abs $ deltaFirst (p ^._x) (nr ^._x)
-    stepScales = [(firstStep + x + epsilon) / abs (nr ^._x) | x <- take (upperBound (p^._x) (nr ^._x)) [0.0 ..]]
+    stepScales = [(firstStep + x + epsilon) / abs (nr ^._x) | x <- take (yStepLimit p nr) [0.0 ..]]
 
 yRayGridIntersections :: V2 Float -> V2 Float -> [V2 Float]
 yRayGridIntersections p nr = (p +) . (nr ^*) <$> stepScales
   where
     firstStep = abs $ deltaFirst (p ^._y) (nr ^._y)
-    stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- take (upperBound (p^._y) (nr ^._y)) [0.0 ..]]
+    stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- take (xStepLimit p nr) [0.0 ..]]
 
 
---yStepLimit p nr = min (min direct sideRay) (oneStep p nr)
-  --where direct = upperBound (p^._y) (r ^._y)
+yStepLimit p nr = if cantOneStepY p nr
+                  then 0
+                  else min (upperBound (p^._y) (nr ^._y)) (sideBoundsY p nr)
 
-oneStepY p@(V2 px py) nr@(V2 dx dy) = (p +) . (nr ^*) $ abs (deltaFirst py dy)
+xStepLimit p nr = if cantOneStepX p nr
+                  then 0
+                  else min (upperBound (p^._x) (nr ^._x)) (sideBoundsX p nr)
+
+cantOneStepY p@(V2 px py) nr@(V2 dx dy) = outOfBounds $ rayEquation p nr $ (abs (deltaFirst py dy) / dy)
+cantOneStepX p@(V2 px py) nr@(V2 dx dy) = outOfBounds $ rayEquation p nr $ (abs (deltaFirst px dx) / dx)
+
+rayEquation :: V2 Float -> V2 Float -> Float -> V2 Float
+rayEquation p nr = (p +) . (nr ^*)
+
+outOfBounds (V2 x y) = floor x < 0 && floor x > worldSize && floor y < 0 && floor y > worldSize
+
+sideBoundsY (V2 px py) (V2 dx dy) | dx > 0    = floor $ abs $ dx*(fromIntegral worldSize - py) / dy
+                                  | otherwise = floor $ abs $ dx* px / dy
+
+sideBoundsX (V2 px py) (V2 dx dy) | dy > 0    = floor $ abs $ dy*(fromIntegral worldSize - px)/ dx
+                                  | otherwise = floor $ abs $ dy * py / dx
+
+
+crazyRay = V2 1.0 (4.214685e-8) :: V2 Float
 
 epsilon :: Float
 epsilon = 0.00001
