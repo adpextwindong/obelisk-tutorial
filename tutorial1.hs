@@ -248,13 +248,19 @@ yRayGridIntersections p nr = (p +) . (nr ^*) <$> stepScales
     firstStep = abs $ deltaFirst (p ^._y) (nr ^._y)
     stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- take (upperBound (p^._y) (nr ^._y)) [0.0 ..]]
 
+
+--yStepLimit p nr = min (min direct sideRay) (oneStep p nr)
+  --where direct = upperBound (p^._y) (r ^._y)
+
+oneStepY p@(V2 px py) nr@(V2 dx dy) = (p +) . (nr ^*) $ abs (deltaFirst py dy)
+
 epsilon :: Float
 epsilon = 0.00001
 
 deltaFirst :: Float -> Float -> Float
 deltaFirst px vx = if vx < 0
                    then fromIntegral (floor px) - px
-                   else fromIntegral (ceiling px) - px
+                   else fromIntegral ((floor px) + 1) - px
 
 upperBound :: Float -> Float -> Int
 upperBound axisPosition axisRay = if axisRay > 0
