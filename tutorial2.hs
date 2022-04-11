@@ -109,11 +109,11 @@ renderLoop = do
   let quitSignal = SDL.KeycodeEscape `elem` [ k | (SDL.Event _ (SDL.KeyboardEvent (SDL.KeyboardEventData _ _ _ (SDL.Keysym _ k _)))) <- events]
 
   --TODO tune this mouseLook
-  let mouseMove = sum [rv | (SDL.Event _ (SDL.MouseMotionEvent (SDL.MouseMotionEventData _ _ _ _ rv))) <- events]
-  let fovChangeX = fromIntegral $ mouseMove ^._x
-  if fovChangeX > 0
-  then modify (\v -> v { playerdir = playerdir v *! (rotation2 $ (pi/4) * (fromIntegral screenWidth / fovChangeX))})
-  else return ()
+  let rxs = [(rv ^._x) | (SDL.Event _ (SDL.MouseMotionEvent (SDL.MouseMotionEventData _ _ _ _ rv))) <- events]
+  let mouseMove = sum rxs
+  let fovChangeX = fromIntegral $ mouseMove
+  let tune = 750
+  unless (fovChangeX == 0) (modify (\v -> v { playerdir = playerdir v *! (rotation2 $ (-pi/(4*tune)) * (fromIntegral screenWidth / fovChangeX))}))
 
   SDL.clear =<< asks cRenderer
   screenSurface <- asks cSurface
