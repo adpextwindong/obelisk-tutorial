@@ -77,9 +77,7 @@ worldSize = 10
 
 main = do
   SDL.initialize [SDL.InitVideo]
-  let title = "Raycaster"
-
-  window <- SDL.createWindow title SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 screenWidth screenHeight }
+  window <- SDL.createWindow "Raycaster" SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 screenWidth screenHeight }
   SDL.showWindow window
 
   screenSurface <- SDL.getWindowSurface window
@@ -102,9 +100,9 @@ renderLoop = do
   let backgroundColor = SDL.V4 34 34 34 255
 
   events <- SDL.pollEvents
-  --TODO updateInput and quit signal
   --TODO mouseLookAt
-  let quitSignal = False
+
+  let quitSignal = SDL.KeycodeEscape `elem` [ k | x@(SDL.Event _ (SDL.KeyboardEvent (SDL.KeyboardEventData _ _ _ (SDL.Keysym _ k _)))) <- events]
 
   SDL.clear =<< asks cRenderer
   screenSurface <- asks cSurface
@@ -247,12 +245,6 @@ yRayGridIntersections p nr = (p +) . (nr ^*) <$> stepScales
   where
     firstStep = abs $ deltaFirst (p ^._y) (nr ^._y)
     stepScales = [(firstStep + y + epsilon) / abs (nr ^._y) | y <- take (upperBound (p^._y) (nr ^._y)) [0.0 ..]]
-
-
---yStepLimit p nr = min (min direct sideRay) (oneStep p nr)
-  --where direct = upperBound (p^._y) (r ^._y)
-
-oneStepY p@(V2 px py) nr@(V2 dx dy) = (p +) . (nr ^*) $ abs (deltaFirst py dy)
 
 epsilon :: Float
 epsilon = 0.00001
