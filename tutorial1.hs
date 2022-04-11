@@ -100,7 +100,6 @@ renderLoop = do
   let backgroundColor = SDL.V4 34 34 34 255
 
   events <- SDL.pollEvents
-  --TODO mouseLookAt
 
   let quitSignal = SDL.KeycodeEscape `elem` [ k | x@(SDL.Event _ (SDL.KeyboardEvent (SDL.KeyboardEventData _ _ _ (SDL.Keysym _ k _)))) <- events]
 
