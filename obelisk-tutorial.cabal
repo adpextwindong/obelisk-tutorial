@@ -14,23 +14,9 @@ library
     base >= 4.7 && < 5
    ,linear
 
-executable DeltaFirst
-  main-is: src/Obelisk/Diagrams/DeltaFirst.hs
+common deps
   build-depends:
-    base >= 4.7 && < 5
-   ,diagrams
-   ,diagrams-lib
-   ,diagrams-svg
-
-
-executable tutorial1
-  main-is: tutorial1.hs
-  hs-source-dirs:
-    .
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-    base >= 4.7 && < 5
-   ,sdl2
+   sdl2
    ,sdl2-gfx
    ,linear
    ,mtl
@@ -39,3 +25,29 @@ executable tutorial1
    ,array
    ,bifunctor
    ,obelisk-tutorial
+
+executable DeltaFirst
+  main-is: src/Obelisk/Diagrams/DeltaFirst.hs
+  build-depends:
+    base >= 4.7 && < 5
+   ,diagrams
+   ,diagrams-lib
+   ,diagrams-svg
+
+executable tutorial1
+  import: deps
+  main-is: tutorial1.hs
+  hs-source-dirs:
+    .
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    base >= 4.7 && < 5
+
+executable tutorial2
+  import: deps
+  main-is: tutorial2.hs
+  hs-source-dirs:
+    .
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    base >= 4.7 && < 5
