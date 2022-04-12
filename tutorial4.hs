@@ -31,6 +31,7 @@ data Config = Config {
                 cWindow :: SDL.Window
                ,cRenderer :: SDL.Renderer
                ,cSurface :: SDL.Surface
+               ,cTexture :: SDL.Texture
               }
 
 
@@ -47,7 +48,9 @@ data WorldTiles = WorldTiles {
                     tiles :: Array Int Wall
                   } deriving Show
 
-data Intersection = Intersection (V2 Float) (V2 Int)
+data Intersection = Intersection (V2 Float) (V2 Int) IntAxis
+
+data IntAxis = Horizontal | Vertical
 
 singleMap :: WorldTiles
 singleMap = WorldTiles tiles
@@ -87,15 +90,21 @@ main = do
   screenRenderer <- SDL.createSoftwareRenderer screenSurface
   SDL.Raw.setRelativeMouseMode True
 
+  textureSurface <- SDL.loadBMP "resources/wolfWallTexture.bmp"
+  texture <- SDL.createTextureFromSurface screenRenderer textureSurface
+  SDL.freeSurface textureSurface
+
   let cfg = Config {
     cWindow = window,
     cRenderer = screenRenderer,
-    cSurface = screenSurface
+    cSurface = screenSurface,
+    cTexture = texture
   }
 
   evalStateT (runReaderT renderLoop cfg) initVars
 
   SDL.freeSurface screenSurface
+  SDL.destroyTexture texture
   SDL.destroyWindow window
   SDL.quit
 
@@ -203,14 +212,15 @@ drawScreen = do
       wallPoints = walkRayForWall w ppos <$> paths
 
   renderer <- asks cRenderer
-  liftIO . sequence_ $ drawWall renderer ppos w <$> zip3 wallPoints [0..] angles
+  texture <- asks cTexture
+  liftIO . sequence_ $ drawWall renderer texture ppos w <$> zip3 wallPoints [0..] angles
 
   -- Debug Wall Point circles
   --liftIO . sequence_ $ catMaybes wallPoints <&> (\(Intersection pos _) -> SDL.circle renderer (mapAft (worldToPD (worldSize w)) pos) 1 yellow)
 
-drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> (Maybe Intersection, Float, Float) -> IO ()
-drawWall _ _ _ (Nothing, _, _) = return ()
-drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
+drawWall :: SDL.Renderer -> SDL.Texture -> V2 Float -> WorldTiles -> (Maybe Intersection, Float, Float) -> IO ()
+drawWall _ _ _ _ (Nothing, _, _) = return ()
+drawWall r t p w (Just (Intersection intpos@(V2 x y) intindex intType), rayIndex, rayAngle) = do
   let distanceToSlice = rayAngle * distance p intpos -- Permadi Fix
       projectedWallHeight = wallHeight / distanceToSlice
       wallTop     = screenMiddle - projectedWallHeight
@@ -218,7 +228,18 @@ drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
       wallLeft    = rayIndex * fromIntegral wallWidth
       wallRight   = (rayIndex + 1) * fromIntegral wallWidth
 
-  SDL.fillRectangle r (floor <$> V2 wallLeft wallTop) (floor <$> V2 wallRight wallBottom) filledTileColor
+      --Texture mapping
+      textureOffset x size = truncate $ size * (x - (fromIntegral . truncate $ x))
+      textureChunk = case intType of
+                        Vertical -> textureOffset y 64
+                        Horizontal -> textureOffset x 64
+
+      srcRect = SDL.Rectangle (SDL.P (V2 textureChunk 0)) (V2 1 64)
+      dStart = truncate <$> V2 wallLeft wallTop
+      dEnd = truncate <$> V2 wallRight wallBottom
+      dstRect = SDL.Rectangle (SDL.P dStart) (dEnd - dStart)
+
+  SDL.copy r t (Just srcRect) (Just dstRect)
 
 rayHeads :: Int -> V2 Float -> [(V2 Float, Float)]
 rayHeads rayCount playerdir = fmap ray cameraPlaneSweep
@@ -270,18 +291,23 @@ upperBound axisPosition axisRay = if axisRay > 0
                                   else floor axisPosition
 
 mergeIntersections :: V2 Float -> [V2 Float] -> [V2 Float] -> [Intersection]
-mergeIntersections playerpos v@(x:xs) h@(y:ys) = if qd playerpos x < qd playerpos y
-                                                 then vX : mergeIntersections playerpos xs h
-                                                 else hY : mergeIntersections playerpos v ys
-  where vX = Intersection x $ fmap truncate x
-        hY = Intersection y $ fmap truncate y
+mergeIntersections playerpos v@(x:xs) h@(y:ys) =
+    if qd playerpos x < qd playerpos y
+    then (verticalIntersection x) : mergeIntersections playerpos xs h
+    else (horizontalIntersection y) : mergeIntersections playerpos v ys
 
-mergeIntersections _ [] ys = (\y -> Intersection y $ fmap truncate y) <$> ys
-mergeIntersections _ xs [] = (\x -> Intersection x $ fmap truncate x) <$> xs
+mergeIntersections _ [] ys = horizontalIntersection <$> ys
+mergeIntersections _ xs [] = verticalIntersection <$> xs
+
+horizontalIntersection :: V2 Float -> Intersection
+horizontalIntersection p = Intersection p (fmap truncate p) Horizontal
+
+verticalIntersection :: V2 Float -> Intersection
+verticalIntersection p = Intersection p (fmap truncate p) Vertical
 
 walkRayForWall :: WorldTiles -> V2 Float -> [Intersection] -> Maybe Intersection
 walkRayForWall _ _ [] = Nothing
-walkRayForWall w p (i@(Intersection _ checkInds) :path) =
+walkRayForWall w p (i@(Intersection _ checkInds _) :path) =
   case accessMap w checkInds of
     FullWall -> Just i
     _ -> walkRayForWall w p path
