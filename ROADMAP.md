@@ -3,7 +3,7 @@
 - [x] [Basic Fish Eye Walls](tutorial1.hs)
 - [x] [Mouse Look](tutorial2.hs)
 - [x] [Permadi Fish Eye Fix](tutorial3.hs)
-- [ ] Visibility Set
+- [ ] [Visibility Set](tutorial4.hs)
 - [ ] Wall Textures
 - [ ] Multiple Wall Textures
 
