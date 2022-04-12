@@ -1,0 +1,38 @@
+--- tutorial1.hs	2022-04-11 16:44:09.621349300 +0900
++++ tutorial2.hs	2022-04-12 11:19:47.819733200 +0900
+@@ -1,8 +1,11 @@
++{-# LANGUAGE DoAndIfThenElse #-}
+ {-# LANGUAGE OverloadedStrings #-}
+ {-# LANGUAGE BlockArguments #-}
+ import qualified Data.Text as T
+ import qualified SDL
+ import qualified SDL.Primitive as SDL
++import qualified SDL.Raw.Event as SDL.Raw
++import qualified SDL.Raw.Enum as SDL.Raw
+ import Linear
+ import Control.Monad.State
+ import Control.Monad.Reader
+@@ -82,6 +85,7 @@
+ 
+   screenSurface <- SDL.getWindowSurface window
+   screenRenderer <- SDL.createSoftwareRenderer screenSurface
++  SDL.Raw.setRelativeMouseMode True
+ 
+   let cfg = Config {
+     cWindow = window,
+@@ -101,7 +105,14 @@
+ 
+   events <- SDL.pollEvents
+ 
+-  let quitSignal = SDL.KeycodeEscape `elem` [ k | x@(SDL.Event _ (SDL.KeyboardEvent (SDL.KeyboardEventData _ _ _ (SDL.Keysym _ k _)))) <- events]
++  let quitSignal = SDL.KeycodeEscape `elem` [ k | (SDL.Event _ (SDL.KeyboardEvent (SDL.KeyboardEventData _ _ _ (SDL.Keysym _ k _)))) <- events]
++
++  let rxs = [(rv ^._x) | (SDL.Event _ (SDL.MouseMotionEvent (SDL.MouseMotionEventData _ _ _ _ rv))) <- events]
++      mouseMove = fromIntegral $ sum rxs
++      sens = 0.001
++      mouseTurn = rotation2 $ -sens * mouseMove
++
++  unless (mouseMove == 0) (modify (\v -> v { playerdir = playerdir v *! mouseTurn}))
+ 
+   SDL.clear =<< asks cRenderer
+   screenSurface <- asks cSurface

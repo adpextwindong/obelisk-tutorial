@@ -85,7 +85,6 @@ main = do
 
   screenSurface <- SDL.getWindowSurface window
   screenRenderer <- SDL.createSoftwareRenderer screenSurface
-  --print =<< SDL.Raw.captureMouse True
   SDL.Raw.setRelativeMouseMode True
 
   let cfg = Config {
