@@ -1,0 +1,11 @@
+--- tutorial2.hs	2022-04-12 15:19:40.014662500 +0900
++++ tutorial3.hs	2022-04-12 15:19:29.998624400 +0900
+@@ -211,7 +211,7 @@
+ drawWall :: SDL.Renderer -> V2 Float -> WorldTiles -> (Maybe Intersection, Float, Float) -> IO ()
+ drawWall _ _ _ (Nothing, _, _) = return ()
+ drawWall r p w (Just (Intersection intpos@(V2 x y) _), rayIndex, rayAngle) = do
+-  let distanceToSlice = norm $ intpos - p         -- Fish Eye --rayAngle * distance p intpos -- Permadi Fix
++  let distanceToSlice = rayAngle * distance p intpos -- Permadi Fix
+       projectedWallHeight = wallHeight / distanceToSlice
+       wallTop     = screenMiddle - projectedWallHeight
+       wallBottom  = screenMiddle + projectedWallHeight

@@ -51,3 +51,12 @@ executable tutorial2
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
     base >= 4.7 && < 5
+
+executable tutorial3
+  import: deps
+  main-is: tutorial3.hs
+  hs-source-dirs:
+    .
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    base >= 4.7 && < 5
