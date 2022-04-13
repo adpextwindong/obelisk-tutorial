@@ -1,0 +1,82 @@
+--- tutorial4.hs	2022-04-13 11:35:33.031418400 +0900
++++ tutorial5.hs	2022-04-13 12:22:24.555644000 +0900
+@@ -20,6 +20,9 @@
+ import Obelisk.Math.Homogenous
+ import qualified Debug.Trace as Debug
+ 
++textureCount = 8 -- Number of textures in the texture sheet
++textureSize = 64 -- Pixel count for the _SQUARE_ textures
++
+ initVars = GameState {
+   world = boxMap
+   ,playerpos = V2 8.0 8.0
+@@ -41,7 +44,7 @@
+                    ,playerdir :: V2 Float
+                  }
+ 
+-data Wall = FullWall | EmptyWall
++data Wall = FullWall Int | EmptyWall
+   deriving Show
+ 
+ data WorldTiles = WorldTiles {
+@@ -56,7 +59,7 @@
+ singleMap = WorldTiles tiles
+   where
+     n = worldSize
+-    tiles = listArray (0,(n*n)-1) $ FullWall : replicate ((n * n) - 1) EmptyWall
++    tiles = listArray (0,(n*n)-1) $ (FullWall 0) : replicate ((n * n) - 1) EmptyWall
+ 
+ emptyMap = let n = (worldSize * worldSize) in WorldTiles $ listArray (0,n) $ replicate n EmptyWall
+ 
+@@ -64,8 +67,8 @@
+ boxMap = WorldTiles tiles
+   where
+     n = worldSize
+-    top = replicate n FullWall
+-    middle = [FullWall] ++ replicate (n - 2) EmptyWall ++ [FullWall]
++    top = [FullWall $ mod x textureCount | x <- [0..n]]
++    middle = [FullWall 0] ++ replicate (n - 2) EmptyWall ++ [FullWall 0]
+     tiles = listArray (0,(n*n) - 1) $ concat $ [top] ++ replicate (n - 2) middle ++ [top]
+ 
+ accessMap :: WorldTiles -> V2 Int -> Wall
+@@ -90,7 +93,7 @@
+   screenRenderer <- SDL.createSoftwareRenderer screenSurface
+   SDL.Raw.setRelativeMouseMode True
+ 
+-  textureSurface <- SDL.loadBMP "resources/wolfWallTexture.bmp"
++  textureSurface <- SDL.loadBMP "resources/wolftextures.bmp"
+   texture <- SDL.createTextureFromSurface screenRenderer textureSurface
+   SDL.freeSurface textureSurface
+ 
+@@ -191,9 +194,10 @@
+     zoomFactor = zoomT $ fromIntegral screenHeight / fromIntegral worldSize * 0.95
+     translateToPDCenter = translateT (fromIntegral screenWidth / 2.0) (fromIntegral screenHeight / 2.0)
+ 
+-wallTypeToColor FullWall = filledTileColor
++wallTypeToColor (FullWall _) = filledTileColor
+ wallTypeToColor EmptyWall = SDL.V4 34 34 34 maxBound
+ white = SDL.V4 255 255 255 255
++filledTileColor :: SDL.Color
+ filledTileColor = SDL.V4 51 51 102 maxBound
+ yellow :: SDL.Color
+ yellow = SDL.V4 255 255 0 maxBound
+@@ -228,8 +232,11 @@
+       wallLeft    = rayIndex * fromIntegral wallWidth
+       wallRight   = (rayIndex + 1) * fromIntegral wallWidth
+ 
++      --Texture Index
++      fullWallTexInd (FullWall i) = i
++      textureIndex = fromIntegral $ fullWallTexInd $ accessMap w intindex
+       --Texture mapping
+-      textureOffset x size = truncate $ size * (x - (fromIntegral . truncate $ x))
++      textureOffset x size = truncate $ (64 * textureIndex) + size * (x - (fromIntegral . truncate $ x))
+       textureChunk = case intType of
+                         Vertical -> textureOffset y 64
+                         Horizontal -> textureOffset x 64
+@@ -309,5 +316,5 @@
+ walkRayForWall _ _ [] = Nothing
+ walkRayForWall w p (i@(Intersection _ checkInds _) :path) =
+   case accessMap w checkInds of
+-    FullWall -> Just i
++    (FullWall _) -> Just i
+     _ -> walkRayForWall w p path

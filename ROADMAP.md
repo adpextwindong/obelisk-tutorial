@@ -4,7 +4,7 @@
 - [x] [Mouse Look](tutorial2.hs)
 - [x] [Permadi Fish Eye Fix](tutorial3.hs)
 - [x] [Wall Textures](tutorial4.hs)
-- [ ] Multiple Wall Textures
+- [x] [Multiple Wall Textures](tutorial5.hs)
 - [ ] Visibility Set
 
 ## Pitfalls to demonstrate
