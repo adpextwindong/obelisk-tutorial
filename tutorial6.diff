@@ -1,0 +1,53 @@
+--- tutorial5.hs	2022-04-13 12:22:24.555644000 +0900
++++ tutorial6.hs	2022-04-13 13:57:13.675051900 +0900
+@@ -1,3 +1,4 @@
++{-# LANGUAGE FlexibleContexts #-}
+ {-# LANGUAGE DoAndIfThenElse #-}
+ {-# LANGUAGE OverloadedStrings #-}
+ {-# LANGUAGE BlockArguments #-}
+@@ -16,6 +17,10 @@
+ import Data.Bifunctor
+ import Data.Maybe
+ 
++import Data.Array.ST
++import qualified Data.Array.Unboxed as U
++import Control.Monad.ST
++
+ import Obelisk.Math.Vector
+ import Obelisk.Math.Homogenous
+ import qualified Debug.Trace as Debug
+@@ -213,7 +218,7 @@
+       rays = fmap fst rayAnglePairs :: [V2 Float]
+       angles = fmap snd rayAnglePairs :: [Float]
+       paths = shootRay ppos <$> rays
+-      wallPoints = walkRayForWall w ppos <$> paths
++      (wallPoints, visited) = stScreenWalkRaysForWall w ppos paths
+ 
+   renderer <- asks cRenderer
+   texture <- asks cTexture
+@@ -318,3 +323,25 @@
+   case accessMap w checkInds of
+     (FullWall _) -> Just i
+     _ -> walkRayForWall w p path
++
++stScreenWalkRaysForWall :: WorldTiles -> V2 Float -> [[Intersection]] -> ([Maybe Intersection], U.UArray (V2 Int) Bool)
++stScreenWalkRaysForWall w p paths = runST aux
++  where
++    aux :: ST s ([Maybe Intersection], U.UArray (V2 Int) Bool)
++    aux = do
++      let tileCount = fromIntegral $ worldSize * worldSize
++      visited <- newArray (0, tileCount) False :: ST s (STUArray s (V2 Int) Bool)
++
++      let go (sIntersection@(Intersection _ checkInds _) : path) = do
++            writeArray visited checkInds True
++
++            case accessMap w checkInds of
++              FullWall _ -> return $ Just sIntersection
++              _ -> go path
++
++          go [] = return Nothing
++
++      results <- mapM go paths
++      rv <- freeze visited
++
++      return (results, rv)
