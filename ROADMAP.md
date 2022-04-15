@@ -6,6 +6,7 @@
 - [x] [Wall Textures](tutorial4.hs) ([diff](tutorial4.diff))
 - [x] [Multiple Wall Textures](tutorial5.hs) ([diff](tutorial5.diff))
 - [x] [Visibility Set](tutorial6.hs) ([diff](tutorial6.diff))
+- [ ] [Wall Transparency](https://github.com/adpextwindong/obelisk/commit/0bc839249017abc0ad244b406b8970df100c45e1)
 
 ## Pitfalls to demonstrate
 
